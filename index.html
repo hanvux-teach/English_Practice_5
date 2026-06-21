@@ -445,7 +445,7 @@ window.fb = {
           <option>mcq</option><option>fill</option><option>arrange</option>
           <option>phonics</option><option>listen</option><option>listen-tf</option><option>listen-fill</option>
           <option>tf</option><option>odd</option><option>img-mcq</option><option>read-img</option><option>listen-img</option>
-          <option>mcq-multi</option><option>drag-fill</option>
+          <option>mcq-multi</option><option>drag-fill</option><option>listen-multi</option>
         </select>
         <input class="inp" id="q-search" placeholder="Tìm câu hỏi..." oninput="renderQTable()" style="max-width:200px">
       </div>
@@ -574,6 +574,7 @@ window.fb = {
       <option value="listen-img">Listen + Image — Nghe chọn ảnh</option>
       <option value="mcq-multi">MCQ Multi — Chọn nhiều đáp án</option>
       <option value="drag-fill">Drag Fill — Kéo thả từ vào chỗ trống</option>
+      <option value="listen-multi">Listen Multi — Nghe và chọn nhiều đáp án</option>
     </select>
     <div id="q-form-body"></div>
     <div class="err-msg" id="mq-err">Vui lòng điền đầy đủ!</div>
@@ -1132,6 +1133,16 @@ const Q_FORMS={
     <textarea class="inp" id="qf-opts" rows="5" placeholder="cat&#10;fence&#10;sunny&#10;dog&#10;rainy"></textarea>
     <label class="lbl">Dịch nghĩa (tuỳ chọn)</label>
     <input class="inp" id="qf-extra" placeholder="">`,
+  "listen-multi":`<label class="lbl">Audio URL</label>
+    <input class="inp" id="qf-audio" placeholder="https://....mp3">
+    <label class="lbl">Hướng dẫn (hiển thị cho học sinh)</label>
+    <input class="inp" id="qf-prompt" value="Nghe và chọn tất cả đáp án đúng">
+    <label class="lbl">Các đáp án ĐÚNG (mỗi đáp án 1 dòng — tất cả đều phải chọn)</label>
+    <textarea class="inp" id="qf-answer" rows="3" placeholder="cat&#10;dog"></textarea>
+    <label class="lbl">Tất cả lựa chọn (gồm cả đúng lẫn sai, mỗi dòng 1 lựa chọn)</label>
+    <textarea class="inp" id="qf-opts" rows="5" placeholder="cat&#10;dog&#10;table&#10;chair&#10;bird"></textarea>
+    <label class="lbl">Gợi ý (tuỳ chọn)</label>
+    <input class="inp" id="qf-extra" placeholder="">`,
 };
 function renderQForm(){
   const type=document.getElementById("mq-type").value;
@@ -1153,7 +1164,7 @@ function openQModal(id){
       const fp=document.getElementById("qf-prompt");if(fp)fp.value=q.prompt||"";
       const fa=document.getElementById("qf-answer");
       if(fa&&fa.tagName!=="SELECT"){
-        if(q.type==="mcq-multi")fa.value=(q.answer||"").split("|").join("\n");
+        if(q.type==="mcq-multi"||q.type==="listen-multi")fa.value=(q.answer||"").split("|").join("\n");
         else fa.value=q.answer||"";
       }else if(fa)fa.value=q.answer||"True";
       const fo=document.getElementById("qf-opts");if(fo&&fo.type!=="hidden")fo.value=(q.opts||[]).join(fo.tagName==="TEXTAREA"?"\n":", ");
@@ -1179,9 +1190,8 @@ async function saveQ(){
   let extra=fe?fe.value.trim():"";
   let audioUrl=faud?faud.value.trim():"";
   if(type==="arrange"){answer=prompt;prompt="Sắp xếp thành câu đúng";}
-  // mcq-multi: answer field is multiline — join as pipe-separated for storage
-  if(type==="mcq-multi"){
-    // answer may have been typed as multiline; normalise to "|" separated
+  // mcq-multi / listen-multi: answer field is multiline — join as pipe-separated for storage
+  if(type==="mcq-multi"||type==="listen-multi"){
     answer=answer.split("\n").map(x=>x.trim()).filter(Boolean).join("|");
   }
   if(!prompt||!answer){document.getElementById("mq-err").classList.add("on");return;}
@@ -1435,7 +1445,7 @@ function renderQ(){
   document.getElementById("q-ctr").textContent=(quizIdx+1)+" / "+total;
   document.getElementById("q-live").textContent="✓ "+quizCorrect;
   document.getElementById("qpfill").style.width=(quizIdx/total*100)+"%";
-  const labels={mcq:"Từ vựng",fill:"Điền từ",arrange:"Sắp xếp câu",phonics:"Phiên âm",listen:"Bài nghe","listen-tf":"Nghe Đúng/Sai","listen-fill":"Nghe Điền từ",tf:"Đúng / Sai",odd:"Odd one out","img-mcq":"Chọn ảnh","read-img":"Đọc + Ảnh","listen-img":"Nghe + Ảnh","mcq-multi":"Chọn nhiều đáp án","drag-fill":"Kéo thả từ"};
+  const labels={mcq:"Từ vựng",fill:"Điền từ",arrange:"Sắp xếp câu",phonics:"Phiên âm",listen:"Bài nghe","listen-tf":"Nghe Đúng/Sai","listen-fill":"Nghe Điền từ",tf:"Đúng / Sai",odd:"Odd one out","img-mcq":"Chọn ảnh","read-img":"Đọc + Ảnh","listen-img":"Nghe + Ảnh","mcq-multi":"Chọn nhiều đáp án","drag-fill":"Kéo thả từ","listen-multi":"Nghe + Chọn nhiều"};
   document.getElementById("qt-badge").textContent=labels[q.type]||q.type;
   const body=document.getElementById("quiz-body");
   if(q.type==="mcq"||q.type==="odd")body.innerHTML=renderMCQ(q);
@@ -1451,6 +1461,7 @@ function renderQ(){
   else if(q.type==="listen-img")body.innerHTML=renderListenImg(q);
   else if(q.type==="mcq-multi"){body.innerHTML=renderMCQMulti(q);}
   else if(q.type==="drag-fill"){body.innerHTML=renderDragFill(q);initDragFill();}
+  else if(q.type==="listen-multi"){body.innerHTML=renderListenMulti(q);}
   else body.innerHTML=renderMCQ(q);
 }
 function nextQ(){quizIdx++;renderQ();}
@@ -1730,6 +1741,25 @@ function renderListenImg(q){
   <div class="img-opts">${opts.map(o=>`<button class="img-obt" onclick="checkImgMCQ(this,${escJs(o)},${escJs(q.answer)},${escJs(correctLabel)})">
     <img src="${esc(o)}" alt="" onerror="this.style.display='none'">
   </button>`).join("")}</div>
+  <div class="fb" id="fb"></div>
+  <button class="nxbt" id="nb" onclick="nextQ()"></button>`;
+}
+
+// ══ Listen Multi ══
+function renderListenMulti(q){
+  const correctSet=new Set((q.answer||"").split("|").map(x=>x.trim()).filter(Boolean));
+  const opts=q.opts&&q.opts.length?shuffled(q.opts):shuffled([...correctSet]);
+  return `<div class="lbox">
+    <span class="listen-sub-badge">🎧 Nghe và chọn nhiều đáp án</span>
+    <p style="font-size:13px;color:var(--tx2);margin:8px 0 12px">${esc(q.prompt||"Nghe và chọn tất cả đáp án đúng")}</p>
+    <button class="lbtn" onclick="playQuestionAudio(${escJs(q.audioUrl||"")},'')">
+      <svg viewBox="0 0 24 24" fill="white" width="20" height="20"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+      Nghe
+    </button>
+  </div>
+  <div class="multi-hint">Chọn tất cả đáp án đúng (có thể chọn nhiều)</div>
+  <div class="opts" style="grid-template-columns:1fr">${opts.map(o=>`<button class="obt-multi" onclick="toggleMulti(this,${escJs(o)})"><span class="chk"></span>${esc(o)}</button>`).join("")}</div>
+  <button class="btn btn-pur" style="margin-top:10px;width:100%" onclick="checkMCQMulti(${escJs(q.answer)})">Kiểm tra</button>
   <div class="fb" id="fb"></div>
   <button class="nxbt" id="nb" onclick="nextQ()"></button>`;
 }
