@@ -206,6 +206,33 @@ textarea.inp{resize:vertical;min-height:70px}
 /* image in question box */
 .qimg{width:100%;max-height:180px;object-fit:cover;border-radius:var(--rs);margin-bottom:10px;display:block}
 
+/* mcq-multi */
+.obt-multi{padding:11px 13px;border:1.5px solid var(--bord);border-radius:var(--rs);background:var(--surf);cursor:pointer;font-size:14px;text-align:left;transition:.15s;color:var(--tx);line-height:1.4;display:flex;align-items:center;gap:9px}
+.obt-multi:hover:not(.locked){background:var(--surf2);border-color:var(--pur-m)}
+.obt-multi.sel{background:var(--pur-l);border-color:var(--pur);color:var(--pur-d)}
+.obt-multi.ok{background:var(--grn-l);border-color:var(--grn);color:var(--grn)}
+.obt-multi.bad{background:var(--red-l);border-color:var(--red);color:var(--red)}
+.obt-multi.ok-dim{background:var(--grn-l);border-color:var(--grn);opacity:.55}
+.obt-multi .chk{width:18px;height:18px;border:2px solid var(--bord2);border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;transition:.15s}
+.obt-multi.sel .chk{background:var(--pur);border-color:var(--pur);color:#fff}
+.obt-multi.ok .chk,.obt-multi.ok-dim .chk{background:var(--grn);border-color:var(--grn);color:#fff}
+.obt-multi.bad .chk{background:var(--red);border-color:var(--red);color:#fff}
+.multi-hint{font-size:12px;color:var(--tx3);margin-bottom:9px;text-align:center}
+
+/* drag-fill */
+.df-passage{font-size:17px;font-weight:500;line-height:2.4;padding:16px 14px;background:var(--surf2);border-radius:var(--r);margin-bottom:14px;text-align:center;word-break:break-word}
+.df-blank{display:inline-block;width:88px;height:32px;border-bottom:2.5px solid var(--pur);vertical-align:middle;margin:0 4px;border-radius:0;background:transparent;position:relative;cursor:pointer;transition:.2s}
+.df-blank.drag-over{background:var(--pur-l);border-radius:var(--rs)}
+.df-blank.filled{border-bottom-color:var(--pur-d);background:var(--pur-l);border-radius:var(--rs);padding:0 6px}
+.df-blank.ok{border-bottom-color:var(--teal);background:var(--teal-l);border-radius:var(--rs)}
+.df-blank.bad{border-bottom-color:var(--red);background:var(--red-l);border-radius:var(--rs)}
+.df-blank-text{font-size:14px;font-weight:700;color:var(--pur-d);text-align:center;line-height:32px;display:block;pointer-events:none;white-space:nowrap;overflow:hidden}
+.df-wordbox{display:flex;flex-wrap:wrap;gap:8px;min-height:48px;padding:10px;background:var(--surf2);border-radius:var(--rs);margin-bottom:12px;border:1.5px dashed var(--bord2)}
+.df-chip{padding:7px 14px;background:var(--surf);border:1.5px solid var(--bord);border-radius:20px;cursor:grab;font-size:14px;font-weight:600;transition:.15s;user-select:none;color:var(--tx)}
+.df-chip:hover{background:var(--pur-l);border-color:var(--pur-m)}
+.df-chip.dragging{opacity:.4}
+.df-chip.used{opacity:0;pointer-events:none}
+
 /* responsive */
 @media(max-width:500px){
   .opts,.phonopts,.tfopts,.img-opts{grid-template-columns:1fr}
@@ -418,6 +445,7 @@ window.fb = {
           <option>mcq</option><option>fill</option><option>arrange</option>
           <option>phonics</option><option>listen</option><option>listen-tf</option><option>listen-fill</option>
           <option>tf</option><option>odd</option><option>img-mcq</option><option>read-img</option><option>listen-img</option>
+          <option>mcq-multi</option><option>drag-fill</option>
         </select>
         <input class="inp" id="q-search" placeholder="Tìm câu hỏi..." oninput="renderQTable()" style="max-width:200px">
       </div>
@@ -544,6 +572,8 @@ window.fb = {
       <option value="img-mcq">Image MCQ — Chọn ảnh đúng</option>
       <option value="read-img">Read + Image — Đọc chọn ảnh</option>
       <option value="listen-img">Listen + Image — Nghe chọn ảnh</option>
+      <option value="mcq-multi">MCQ Multi — Chọn nhiều đáp án</option>
+      <option value="drag-fill">Drag Fill — Kéo thả từ vào chỗ trống</option>
     </select>
     <div id="q-form-body"></div>
     <div class="err-msg" id="mq-err">Vui lòng điền đầy đủ!</div>
@@ -1086,6 +1116,22 @@ const Q_FORMS={
     <textarea class="inp" id="qf-opts" rows="4" placeholder="cat&#10;dog&#10;table&#10;bird"></textarea>
     <label class="lbl">Giải thích (tuỳ chọn)</label>
     <input class="inp" id="qf-extra" placeholder="table là đồ vật, không phải động vật">`,
+  "mcq-multi":`<label class="lbl">Câu hỏi</label>
+    <textarea class="inp" id="qf-prompt" rows="3" placeholder="Chọn các từ chỉ động vật:"></textarea>
+    <label class="lbl">Các đáp án ĐÚNG (mỗi đáp án 1 dòng — tất cả đều phải chọn)</label>
+    <textarea class="inp" id="qf-answer" rows="3" placeholder="cat&#10;dog&#10;bird"></textarea>
+    <label class="lbl">Tất cả lựa chọn (gồm cả đúng lẫn sai, mỗi dòng 1 lựa chọn)</label>
+    <textarea class="inp" id="qf-opts" rows="5" placeholder="cat&#10;dog&#10;bird&#10;table&#10;chair"></textarea>
+    <label class="lbl">Gợi ý (tuỳ chọn)</label>
+    <input class="inp" id="qf-extra" placeholder="">`,
+  "drag-fill":`<label class="lbl">Đoạn văn có chỗ trống (dùng ___ cho mỗi chỗ trống)</label>
+    <textarea class="inp" id="qf-prompt" rows="4" placeholder="The ___ jumped over the ___. It was a ___ day."></textarea>
+    <label class="lbl">Đáp án đúng theo thứ tự từng chỗ trống (mỗi từ 1 dòng)</label>
+    <textarea class="inp" id="qf-answer" rows="3" placeholder="cat&#10;fence&#10;sunny"></textarea>
+    <label class="lbl">Tất cả các từ trong word box — gồm cả từ đúng và từ mồi nhử (mỗi từ 1 dòng)</label>
+    <textarea class="inp" id="qf-opts" rows="5" placeholder="cat&#10;fence&#10;sunny&#10;dog&#10;rainy"></textarea>
+    <label class="lbl">Dịch nghĩa (tuỳ chọn)</label>
+    <input class="inp" id="qf-extra" placeholder="">`,
 };
 function renderQForm(){
   const type=document.getElementById("mq-type").value;
@@ -1105,7 +1151,11 @@ function openQModal(id){
   if(q){
     setTimeout(()=>{
       const fp=document.getElementById("qf-prompt");if(fp)fp.value=q.prompt||"";
-      const fa=document.getElementById("qf-answer");if(fa&&fa.tagName!=="SELECT")fa.value=q.answer||"";else if(fa)fa.value=q.answer||"True";
+      const fa=document.getElementById("qf-answer");
+      if(fa&&fa.tagName!=="SELECT"){
+        if(q.type==="mcq-multi")fa.value=(q.answer||"").split("|").join("\n");
+        else fa.value=q.answer||"";
+      }else if(fa)fa.value=q.answer||"True";
       const fo=document.getElementById("qf-opts");if(fo&&fo.type!=="hidden")fo.value=(q.opts||[]).join(fo.tagName==="TEXTAREA"?"\n":", ");
       const fe=document.getElementById("qf-extra");if(fe&&fe.type!=="hidden")fe.value=q.extra||"";
       const faud=document.getElementById("qf-audio");if(faud) faud.value=q.audioUrl||"";
@@ -1129,6 +1179,11 @@ async function saveQ(){
   let extra=fe?fe.value.trim():"";
   let audioUrl=faud?faud.value.trim():"";
   if(type==="arrange"){answer=prompt;prompt="Sắp xếp thành câu đúng";}
+  // mcq-multi: answer field is multiline — join as pipe-separated for storage
+  if(type==="mcq-multi"){
+    // answer may have been typed as multiline; normalise to "|" separated
+    answer=answer.split("\n").map(x=>x.trim()).filter(Boolean).join("|");
+  }
   if(!prompt||!answer){document.getElementById("mq-err").classList.add("on");return;}
   const opts=optsRaw?(fo&&fo.type==="hidden"?optsRaw.split(","):optsRaw.split("\n")).map(x=>x.trim()).filter(Boolean):[];
   if(id){
@@ -1380,7 +1435,7 @@ function renderQ(){
   document.getElementById("q-ctr").textContent=(quizIdx+1)+" / "+total;
   document.getElementById("q-live").textContent="✓ "+quizCorrect;
   document.getElementById("qpfill").style.width=(quizIdx/total*100)+"%";
-  const labels={mcq:"Từ vựng",fill:"Điền từ",arrange:"Sắp xếp câu",phonics:"Phiên âm",listen:"Bài nghe","listen-tf":"Nghe Đúng/Sai","listen-fill":"Nghe Điền từ",tf:"Đúng / Sai",odd:"Odd one out","img-mcq":"Chọn ảnh","read-img":"Đọc + Ảnh","listen-img":"Nghe + Ảnh"};
+  const labels={mcq:"Từ vựng",fill:"Điền từ",arrange:"Sắp xếp câu",phonics:"Phiên âm",listen:"Bài nghe","listen-tf":"Nghe Đúng/Sai","listen-fill":"Nghe Điền từ",tf:"Đúng / Sai",odd:"Odd one out","img-mcq":"Chọn ảnh","read-img":"Đọc + Ảnh","listen-img":"Nghe + Ảnh","mcq-multi":"Chọn nhiều đáp án","drag-fill":"Kéo thả từ"};
   document.getElementById("qt-badge").textContent=labels[q.type]||q.type;
   const body=document.getElementById("quiz-body");
   if(q.type==="mcq"||q.type==="odd")body.innerHTML=renderMCQ(q);
@@ -1394,6 +1449,8 @@ function renderQ(){
   else if(q.type==="img-mcq")body.innerHTML=renderImgMCQ(q);
   else if(q.type==="read-img")body.innerHTML=renderReadImg(q);
   else if(q.type==="listen-img")body.innerHTML=renderListenImg(q);
+  else if(q.type==="mcq-multi"){body.innerHTML=renderMCQMulti(q);}
+  else if(q.type==="drag-fill"){body.innerHTML=renderDragFill(q);initDragFill();}
   else body.innerHTML=renderMCQ(q);
 }
 function nextQ(){quizIdx++;renderQ();}
@@ -1675,6 +1732,129 @@ function renderListenImg(q){
   </button>`).join("")}</div>
   <div class="fb" id="fb"></div>
   <button class="nxbt" id="nb" onclick="nextQ()"></button>`;
+}
+
+// ══ MCQ Multi ══
+function renderMCQMulti(q){
+  const correctSet=new Set((q.answer||"").split("|").map(x=>x.trim()).filter(Boolean));
+  const opts=q.opts&&q.opts.length?shuffled(q.opts):shuffled([...correctSet]);
+  const promptHtml=esc(q.prompt).replace(/\n/g,"<br>");
+  return `<div class="qbox">${promptHtml}${q.extra?`<span class="qsub">${esc(q.extra)}</span>`:""}</div>
+  <div class="multi-hint">Chọn tất cả đáp án đúng (có thể chọn nhiều)</div>
+  <div class="opts" style="grid-template-columns:1fr">${opts.map(o=>`<button class="obt-multi" onclick="toggleMulti(this,${escJs(o)})"><span class="chk"></span>${esc(o)}</button>`).join("")}</div>
+  <button class="btn btn-pur" style="margin-top:10px;width:100%" onclick="checkMCQMulti(${escJs(q.answer)})">Kiểm tra</button>
+  <div class="fb" id="fb"></div>
+  <button class="nxbt" id="nb" onclick="nextQ()"></button>`;
+}
+function toggleMulti(btn){
+  if(btn.classList.contains("locked"))return;
+  btn.classList.toggle("sel");
+  btn.querySelector(".chk").textContent=btn.classList.contains("sel")?"✓":"";
+}
+function checkMCQMulti(answerStr){
+  const correctSet=new Set(answerStr.split("|").map(x=>x.trim()).filter(Boolean));
+  const btns=document.querySelectorAll(".obt-multi");
+  btns.forEach(b=>b.classList.add("locked"));
+  let allCorrect=true;
+  btns.forEach(b=>{
+    const val=b.getAttribute("onclick").match(/toggleMulti\(this,(.+)\)/)?.[1];
+    if(!val)return;
+    let v;try{v=JSON.parse(val.replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">"));}catch(e){v=val;}
+    const selected=b.classList.contains("sel");
+    const correct=correctSet.has(v);
+    if(selected&&correct)b.classList.add("ok");
+    else if(selected&&!correct){b.classList.add("bad");allCorrect=false;}
+    else if(!selected&&correct){b.classList.add("ok-dim");allCorrect=false;}
+  });
+  showFB(allCorrect,[...correctSet].join(", "));if(allCorrect)quizCorrect++;
+  const nb=document.getElementById("nb");if(nb){nb.textContent=quizIdx+1<quizQueue.length?"Câu tiếp theo →":"Xem kết quả →";nb.classList.add("on");}
+}
+
+// ══ Drag Fill ══
+let dfState={blanks:[],wordChosen:[]};
+function renderDragFill(q){
+  const answers=(q.answer||"").split("\n").map(x=>x.trim()).filter(Boolean);
+  const wordBox=q.opts&&q.opts.length?shuffled(q.opts):shuffled([...answers]);
+  // Build passage HTML — replace each ___ with a drop zone, all same width
+  let blankIdx=0;
+  const passageHtml=esc(q.prompt).replace(/___/g,()=>{
+    const i=blankIdx++;
+    return `<span class="df-blank" id="dfb-${i}" data-idx="${i}" ondragover="dfDragOver(event,this)" ondragleave="dfDragLeave(this)" ondrop="dfDrop(event,this)" onclick="dfClickBlank(this)"><span class="df-blank-text" id="dfbt-${i}"></span></span>`;
+  });
+  dfState={blanks:new Array(blankIdx).fill(null),wordChosen:new Array(wordBox.length).fill(false),answers};
+  return `<div class="df-passage" id="df-passage">${passageHtml}</div>
+  ${q.extra?`<div class="hint-lbl">${esc(q.extra)}</div>`:""}
+  <div style="font-size:12px;color:var(--tx2);margin-bottom:6px">Kéo thả (hoặc nhấn) từ vào chỗ trống:</div>
+  <div class="df-wordbox" id="df-wordbox">${wordBox.map((w,i)=>`<span class="df-chip" id="dfc-${i}" draggable="true" data-word="${esc(w)}" data-ci="${i}" ondragstart="dfDragStart(event,this)" onclick="dfClickChip(this)">${esc(w)}</span>`).join("")}</div>
+  <button class="btn btn-pur" style="width:100%;margin-bottom:10px" onclick="checkDragFill()">Kiểm tra</button>
+  <div class="fb" id="fb"></div>
+  <button class="nxbt" id="nb" onclick="nextQ()"></button>`;
+}
+let dfDragging=null;
+let dfSelectedChip=null;
+function initDragFill(){dfDragging=null;dfSelectedChip=null;}
+function dfDragStart(e,chip){dfDragging=chip;chip.classList.add("dragging");e.dataTransfer.effectAllowed="move";}
+document.addEventListener("dragend",()=>{if(dfDragging)dfDragging.classList.remove("dragging");dfDragging=null;});
+function dfDragOver(e,blank){e.preventDefault();blank.classList.add("drag-over");}
+function dfDragLeave(blank){blank.classList.remove("drag-over");}
+function dfDrop(e,blank){
+  e.preventDefault();blank.classList.remove("drag-over");
+  if(!dfDragging)return;
+  dfPlaceWord(dfDragging,blank);
+}
+function dfClickChip(chip){
+  if(chip.classList.contains("used"))return;
+  // deselect prev
+  if(dfSelectedChip&&dfSelectedChip!==chip)dfSelectedChip.style.outline="";
+  if(dfSelectedChip===chip){dfSelectedChip.style.outline="";dfSelectedChip=null;return;}
+  dfSelectedChip=chip;
+  chip.style.outline="2.5px solid var(--pur)";
+}
+function dfClickBlank(blank){
+  if(blank.classList.contains("ok")||blank.classList.contains("bad"))return;
+  // If a chip is selected, place it
+  if(dfSelectedChip){dfPlaceWord(dfSelectedChip,blank);dfSelectedChip.style.outline="";dfSelectedChip=null;return;}
+  // If blank is filled, return word to box
+  const idx=parseInt(blank.dataset.idx);
+  if(dfState.blanks[idx]!=null){
+    const {ci,word}=dfState.blanks[idx];
+    dfState.blanks[idx]=null;
+    blank.classList.remove("filled");
+    const bt=document.getElementById("dfbt-"+idx);if(bt)bt.textContent="";
+    const chip=document.getElementById("dfc-"+ci);if(chip)chip.classList.remove("used");
+  }
+}
+function dfPlaceWord(chip,blank){
+  const idx=parseInt(blank.dataset.idx);
+  const ci=parseInt(chip.dataset.ci);
+  const word=chip.dataset.word;
+  // Return old word in this blank to word box
+  if(dfState.blanks[idx]!=null){
+    const old=dfState.blanks[idx];
+    const oldChip=document.getElementById("dfc-"+old.ci);if(oldChip)oldChip.classList.remove("used");
+  }
+  dfState.blanks[idx]={ci,word};
+  chip.classList.add("used");
+  blank.classList.add("filled");
+  const bt=document.getElementById("dfbt-"+idx);if(bt)bt.textContent=word;
+}
+function checkDragFill(){
+  const answers=dfState.answers;
+  const blanks=dfState.blanks;
+  if(blanks.some(b=>b==null)){showFB(false,"Điền tất cả các chỗ trống trước!");return;}
+  // lock
+  document.querySelectorAll(".df-chip").forEach(c=>{c.setAttribute("draggable","false");c.style.cursor="default";});
+  document.querySelectorAll(".df-blank").forEach(b=>{b.style.cursor="default";b.onclick=null;b.ondragover=null;b.ondrop=null;});
+  let allOk=true;
+  blanks.forEach((b,i)=>{
+    const blank=document.getElementById("dfb-"+i);
+    if(!blank)return;
+    const ok=b&&b.word.trim().toLowerCase()===answers[i]?.trim().toLowerCase();
+    blank.classList.add(ok?"ok":"bad");
+    if(!ok)allOk=false;
+  });
+  showFB(allOk,answers.join(", "));if(allOk)quizCorrect++;
+  const nb=document.getElementById("nb");if(nb){nb.textContent=quizIdx+1<quizQueue.length?"Câu tiếp theo →":"Xem kết quả →";nb.classList.add("on");}
 }
 
 function showFB(ok,ans){
