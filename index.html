@@ -1871,6 +1871,9 @@ function toggleMulti(btn){
 function checkMCQMulti(answerStr){
   const correctSet=new Set(answerStr.split("|").map(x=>x.trim()).filter(Boolean));
   const btns=document.querySelectorAll(".obt-multi");
+  // Disable the check button immediately to prevent double-firing
+  const checkBtn=document.querySelector(".btn-pur[onclick*='checkMCQMulti']");
+  if(checkBtn){if(checkBtn.dataset.checked)return;checkBtn.dataset.checked="1";checkBtn.disabled=true;}
   btns.forEach(b=>b.classList.add("locked"));
   let allCorrect=true;
   btns.forEach(b=>{
@@ -1959,6 +1962,9 @@ function checkDragFill(){
   const answers=dfState.answers;
   const blanks=dfState.blanks;
   if(blanks.some(b=>b==null)){showFB(false,"Điền tất cả các chỗ trống trước!");return;}
+  // Disable the check button immediately to prevent double-firing
+  const checkBtn=document.querySelector(".btn-pur[onclick*='checkDragFill']");
+  if(checkBtn){if(checkBtn.dataset.checked)return;checkBtn.dataset.checked="1";checkBtn.disabled=true;}
   // lock
   document.querySelectorAll(".df-chip").forEach(c=>{c.setAttribute("draggable","false");c.style.cursor="default";});
   document.querySelectorAll(".df-blank").forEach(b=>{b.style.cursor="default";b.onclick=null;b.ondragover=null;b.ondrop=null;});
