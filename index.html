@@ -213,16 +213,18 @@ textarea.inp{resize:vertical;min-height:70px}
 .qimg{width:100%;max-height:180px;object-fit:cover;border-radius:var(--rs);margin-bottom:10px;display:block}
 
 /* mcq-multi */
-.obt-multi{padding:11px 13px;border:1.5px solid var(--bord);border-radius:var(--rs);background:var(--surf);cursor:pointer;font-size:14px;text-align:left;transition:.15s;color:var(--tx);line-height:1.4;display:flex;align-items:center;gap:9px}
+.obt-multi{padding:11px 14px;border:2px solid var(--bord);border-radius:var(--rs);background:var(--surf);cursor:pointer;font-size:14px;text-align:left;transition:.15s;color:var(--tx);line-height:1.4;display:flex;align-items:center;gap:10px;width:100%}
 .obt-multi:hover:not(.locked){background:var(--surf2);border-color:var(--pur-m)}
-.obt-multi.sel{background:var(--pur-l);border-color:var(--pur);color:var(--pur-d)}
-.obt-multi.ok{background:var(--grn-l);border-color:var(--grn);color:var(--grn)}
-.obt-multi.bad{background:var(--red-l);border-color:var(--red);color:var(--red)}
-.obt-multi.ok-dim{background:var(--grn-l);border-color:var(--grn);opacity:.55}
-.obt-multi .chk{width:18px;height:18px;border:2px solid var(--bord2);border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;transition:.15s}
+.obt-multi.sel{background:var(--pur-l);border-color:var(--pur);color:var(--pur-d);font-weight:600}
+.obt-multi.ok{background:var(--grn-l);border-color:var(--grn);color:var(--grn);font-weight:600}
+.obt-multi.bad{background:var(--red-l);border-color:var(--red);color:var(--red);font-weight:600}
+.obt-multi.ok-dim{background:var(--amb-l);border-color:var(--amb);color:var(--amb);font-weight:600}
+.obt-multi.locked{cursor:default}
+.obt-multi .chk{width:20px;height:20px;border:2px solid var(--bord2);border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;transition:.15s;background:var(--surf)}
 .obt-multi.sel .chk{background:var(--pur);border-color:var(--pur);color:#fff}
-.obt-multi.ok .chk,.obt-multi.ok-dim .chk{background:var(--grn);border-color:var(--grn);color:#fff}
+.obt-multi.ok .chk{background:var(--grn);border-color:var(--grn);color:#fff}
 .obt-multi.bad .chk{background:var(--red);border-color:var(--red);color:#fff}
+.obt-multi.ok-dim .chk{background:var(--amb);border-color:var(--amb);color:#fff}
 .multi-hint{font-size:12px;color:var(--tx3);margin-bottom:9px;text-align:center}
 
 /* drag-fill */
@@ -421,6 +423,7 @@ window.fb = {
     <button class="nb on" onclick="aTab('topics')">📚 Chủ đề</button>
     <button class="nb" onclick="aTab('questions')">❓ Câu hỏi</button>
     <button class="nb" onclick="aTab('students')">👩‍🎓 Học sinh</button>
+    <button class="nb" onclick="aTab('scores')">📊 Điểm số</button>
   </div>
 
   <!-- Admin: Topics -->
@@ -481,6 +484,20 @@ window.fb = {
       </div>
     </div>
   </div>
+
+  <!-- Admin: Scores -->
+  <div id="at-scores" class="scr">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+        <h2 style="font-size:15px;font-weight:600">📊 Điểm số học sinh</h2>
+        <div class="btn-row">
+          <select class="inp" id="score-filter-student" onchange="renderAdminScores()" style="margin-bottom:0;max-width:160px"><option value="">Tất cả học sinh</option></select>
+          <select class="inp" id="score-filter-topic" onchange="renderAdminScores()" style="margin-bottom:0;max-width:160px"><option value="">Tất cả chủ đề</option></select>
+        </div>
+      </div>
+      <div id="admin-scores-wrap"></div>
+    </div>
+  </div>
 </div>
 
 <!-- ═══ STUDENT MAIN ═══ -->
@@ -504,12 +521,17 @@ window.fb = {
     <div class="card">
       <h2 style="font-size:15px;font-weight:600;margin-bottom:6px">Ôn tổng hợp</h2>
       <p style="font-size:13px;color:var(--tx2);margin-bottom:14px">Trộn câu hỏi từ tất cả chủ đề — random hoàn toàn.</p>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px">
         <div class="mcard" onclick="selMix(10,this)"><div class="mn">10</div><div class="ml">câu</div></div>
         <div class="mcard sel" onclick="selMix(20,this)"><div class="mn">20</div><div class="ml">câu</div></div>
         <div class="mcard" onclick="selMix(30,this)"><div class="mn">30</div><div class="ml">câu</div></div>
       </div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px">
+        <div class="mcard" onclick="selMix(50,this)"><div class="mn">50</div><div class="ml">câu</div></div>
+        <div class="mcard" onclick="selMix(100,this)"><div class="mn">100</div><div class="ml">câu</div></div>
+      </div>
       <button class="btn btn-pur btn-block" onclick="startMix()">Bắt đầu →</button>
+      <div id="mix-stats-wrap" style="margin-top:14px"></div>
     </div>
   </div>
   <div id="st-stats" class="scr">
@@ -813,17 +835,18 @@ function unlockAdmin(){
 
 // ══════ ADMIN TABS ══════
 function aTab(t){
-  ["topics","questions","students"].forEach(x=>{
+  ["topics","questions","students","scores"].forEach(x=>{
     const el=document.getElementById("at-"+x);
     if(el)el.classList.remove("on");
   });
   document.getElementById("at-"+t).classList.add("on");
   document.querySelectorAll("#s-admin .nb").forEach((b,i)=>{
-    b.classList.toggle("on",["topics","questions","students"][i]===t);
+    b.classList.toggle("on",["topics","questions","students","scores"][i]===t);
   });
   if(t==="topics")renderAdminTopics();
   if(t==="questions"){populateQFilterTopics();renderQTable();}
   if(t==="students")renderStudentList();
+  if(t==="scores")renderAdminScores();
 }
 
 // ══════ STUDENT TABS ══════
@@ -834,6 +857,7 @@ function sTab(t){
     b.classList.toggle("on",["topics","mix","stats"][i]===t);
   });
   if(t==="topics")renderTopicGrid();
+  if(t==="mix")renderMixStats();
   if(t==="stats")renderStats();
 }
 
@@ -1372,6 +1396,48 @@ async function deleteStudent(name){
 }
 function resetAllScores(){if(!confirm("Xóa toàn bộ điểm số?"))return;saveScores({});alert("Đã xóa.");}
 
+// ══════ ADMIN: SCORES ══════
+function renderAdminScores(){
+  const scores=window.CLOUD_SCORES||[];
+  const students=getStudents();
+  const topics=getTopics();
+  // Populate filter dropdowns
+  const stSel=document.getElementById("score-filter-student");
+  const topSel=document.getElementById("score-filter-topic");
+  if(stSel.options.length<=1){
+    students.forEach(s=>{const o=document.createElement("option");o.value=s.name;o.textContent=s.name;stSel.appendChild(o);});
+  }
+  if(topSel.options.length<=1){
+    topics.forEach(t=>{const o=document.createElement("option");o.value=t.id;o.textContent=t.emoji+" "+t.name;topSel.appendChild(o);});
+    const o=document.createElement("option");o.value="mix";o.textContent="🔀 Ôn tổng hợp";topSel.appendChild(o);
+  }
+  const filterSt=stSel.value;
+  const filterTop=topSel.value;
+  let rows=scores;
+  if(filterSt)rows=rows.filter(r=>r.student===filterSt);
+  if(filterTop)rows=rows.filter(r=>r.topicId===filterTop);
+  const wrap=document.getElementById("admin-scores-wrap");
+  if(!rows.length){wrap.innerHTML='<div class="empty">Chưa có điểm nào.</div>';return;}
+  rows=[...rows].sort((a,b)=>a.student.localeCompare(b.student)||a.topicId.localeCompare(b.topicId));
+  wrap.innerHTML=`<table class="qtable">
+    <thead><tr><th>Học sinh</th><th>Chủ đề</th><th style="text-align:center">Lần làm</th><th style="text-align:center">Cao nhất</th><th style="text-align:center">TB</th><th style="text-align:center">Lần cuối</th></tr></thead>
+    <tbody>${rows.map(r=>{
+      const topic=topics.find(t=>t.id===r.topicId);
+      const topLabel=r.topicId==="mix"?"🔀 Ôn tổng hợp":(topic?topic.emoji+" "+topic.name:r.topicId);
+      const avg=r.attempts>0?Math.round((r.sumPct!=null?r.sumPct:(r.best||0)*r.attempts)/r.attempts):0;
+      const bestCol=r.best>=80?"var(--teal)":r.best>=50?"var(--amb)":"var(--red)";
+      return `<tr>
+        <td><strong>${r.student}</strong></td>
+        <td>${topLabel}</td>
+        <td style="text-align:center;color:var(--tx2)">${r.attempts||0}</td>
+        <td style="text-align:center;font-weight:700;color:${bestCol}">${r.best||0}%</td>
+        <td style="text-align:center;color:var(--tx2)">${avg}%</td>
+        <td style="text-align:center;color:var(--tx3)">${r.last!=null?r.last+"%":"—"}</td>
+      </tr>`;
+    }).join("")}</tbody>
+  </table>`;
+}
+
 // ══════ STUDENT: TOPICS ══════
 function renderTopicGrid(){
   const topics=getTopics();
@@ -1433,6 +1499,21 @@ function startTopicQuiz(topicId){
   showScr("s-quiz");renderQ();
 }
 function selMix(n,el){document.querySelectorAll(".mcard").forEach(c=>c.classList.remove("sel"));el.classList.add("sel");mixCount=n;}
+function renderMixStats(){
+  if(!currentUser)return;
+  const sc=getScore(currentUser,"mix");
+  const wrap=document.getElementById("mix-stats-wrap");
+  if(!wrap)return;
+  if(!sc||!sc.attempts){wrap.innerHTML='<div style="font-size:12px;color:var(--tx3);text-align:center">Chưa có lần làm tổng hợp nào.</div>';return;}
+  const avg=getAvgScore(sc);
+  wrap.innerHTML=`<div class="div"></div>
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--tx2)">Thống kê ôn tổng hợp của bạn</div>
+    <div class="sgrid">
+      <div class="sbox"><div class="sn" style="color:var(--amb)">${sc.attempts}</div><div class="sl">Lần làm</div></div>
+      <div class="sbox"><div class="sn" style="color:var(--teal)">${sc.best}%</div><div class="sl">Cao nhất</div></div>
+      <div class="sbox"><div class="sn" style="color:var(--pur)">${avg}%</div><div class="sl">Trung bình</div></div>
+    </div>`;
+}
 function startMix(){
   const pool=getQs();
   if(!pool.length){alert("Chưa có câu hỏi nào!");return;}
@@ -1442,7 +1523,7 @@ function startMix(){
   quizIdx=0;quizCorrect=0;
   showScr("s-quiz");renderQ();
 }
-function exitQuiz(){window.speechSynthesis&&window.speechSynthesis.cancel();showScr("s-main");renderTopicGrid();}
+function exitQuiz(){window.speechSynthesis&&window.speechSynthesis.cancel();showScr("s-main");if(isMix){sTab("mix");}else{renderTopicGrid();}}
 
 function renderQ(){
   const total=quizQueue.length;
