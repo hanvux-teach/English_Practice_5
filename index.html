@@ -770,6 +770,9 @@ async function setScore(user,topicId,pct){
 // ══════ STATE ══════
 let currentUser=null;
 let quizQueue=[],quizIdx=0,quizCorrect=0,quizTopicId=null,isMix=false,mixCount=20;
+// Trả về số "câu" thực tế mà 1 mục trong hàng đợi tính vào tổng điểm.
+// Bài đọc (reading-passage) có nhiều câu nhỏ bên trong thì tính theo số câu nhỏ đó.
+function qWeight(q){return q&&q.type==="reading-passage"?((q.subQuestions&&q.subQuestions.length)||1):1;}
 let arrangeState={placed:[],bank:[]};
 let currentAudio=null;
 
@@ -1579,7 +1582,7 @@ function renderTopicGrid(){
   const grid=document.getElementById("topic-grid");
   if(!topics.length){grid.innerHTML='<div class="empty">Chưa có chủ đề nào.</div>';return;}
   grid.innerHTML=topics.map(t=>{
-    const cnt=qs.filter(q=>q.topicId===t.id).length;
+    const cnt=qs.filter(q=>q.topicId===t.id).reduce((s,q)=>s+qWeight(q),0);
     const sc=getScore(currentUser,t.id);
     const pct=getAvgScore(sc);
     const fc=pct>=80?"g":pct>=50?"y":"";
@@ -2283,7 +2286,7 @@ function rpShowResult(){
   const {subQs,correct}=rpQuizState;const total=subQs.length;
   const pct=total?Math.round(correct/total*100):0;
   const stars=pct>=90?"⭐⭐⭐":pct>=70?"⭐⭐":"⭐";
-  if(pct>=70)quizCorrect++;
+  quizCorrect+=correct;
   const area=document.getElementById("rp-qarea");if(!area)return;
   area.innerHTML=`<div class="rp-qblock" style="text-align:center;padding:20px">
     <div style="font-size:36px;font-weight:700;color:var(--pur)">${pct}%</div>
@@ -2415,7 +2418,7 @@ function showFB(ok,ans){
   fb.textContent=ok?"🎉 Chính xác!":"❌ Sai! Đáp án: "+ans;
 }
 async function showResult(){
-  const total=quizQueue.length;const pct=Math.round(quizCorrect/total*100);
+  const total=quizQueue.reduce((sum,q)=>sum+qWeight(q),0);const pct=Math.round(quizCorrect/total*100);
   await setScore(
     currentUser,
     quizTopicId,
