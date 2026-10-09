@@ -380,6 +380,15 @@ textarea.inp{resize:vertical;min-height:70px}
 .leave-box .cnt{display:inline-block;background:#fff;color:var(--red);font-weight:700;border-radius:20px;padding:4px 14px;margin:6px 0 16px}
 .leave-box button{padding:12px 28px;border-radius:30px;border:none;background:#fff;color:var(--red);font-size:15px;font-weight:700;cursor:pointer}
 .sw-badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:12px;background:var(--red-l);color:var(--red)}
+
+/* Chia động từ: ô trống cố định độ dài, không lộ độ dài đáp án */
+.vf-sentence{text-align:left;line-height:2.6;font-size:16px}
+.vf-blank{display:inline-block;width:150px;max-width:100%;border:none;border-bottom:2.5px solid var(--pur);background:transparent;text-align:center;font-family:inherit;font-size:16px;font-weight:600;color:var(--pur-d);margin:0 5px;padding:2px 4px;outline:none;border-radius:0;vertical-align:baseline;transition:.15s}
+.vf-blank:focus{background:var(--pur-l);border-bottom-color:var(--pur-d);border-radius:4px 4px 0 0}
+.vf-blank.ok{border-bottom-color:var(--grn);color:var(--grn);background:var(--grn-l);border-radius:4px 4px 0 0}
+.vf-blank.bad{border-bottom-color:var(--red);color:var(--red);background:var(--red-l);border-radius:4px 4px 0 0}
+.vf-blank:disabled{opacity:1;-webkit-text-fill-color:currentColor;cursor:default}
+@media(max-width:500px){.vf-blank{width:120px}}
 </style>
 </head>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -579,7 +588,7 @@ textarea.inp{resize:vertical;min-height:70px}
           <option>phonics</option><option>listen</option><option>listen-tf</option><option>listen-fill</option>
           <option>tf</option><option>odd</option><option>img-mcq</option><option>read-img</option><option>listen-img</option><option>pic-mcq</option>
           <option>mcq-multi</option><option>drag-fill</option><option>listen-multi</option><option>img-fill</option>
-          <option>reading-passage</option>
+          <option>reading-passage</option><option>verb-fill</option>
         </select>
         <input class="inp" id="q-search" placeholder="Tìm câu hỏi..." oninput="renderQTable()" style="max-width:200px">
       </div>
@@ -817,6 +826,7 @@ textarea.inp{resize:vertical;min-height:70px}
       <option value="listen-multi">Listen Multi — Nghe và chọn nhiều đáp án</option>
       <option value="img-fill">Image Fill — Nhìn ảnh điền từ</option>
       <option value="reading-passage">Reading Passage — Bài đọc nhiều câu hỏi</option>
+      <option value="verb-fill">Verb Fill — Chia động từ (nhiều ô trống, ô cố định)</option>
       <option value="listening-passage" data-testonly="1" hidden disabled>Listening Passage — 1 audio, nhiều câu hỏi (chỉ trong Test)</option>
     </select>
     <div id="q-form-body"></div>
@@ -1772,6 +1782,7 @@ async function saveQInner(){
   if(type==="mcq-multi"||type==="listen-multi"){
     answer=answer.split("\n").map(x=>x.trim()).filter(Boolean).join("|");
   }
+  if(type==="verb-fill")answer=answer.split("\n").map(x=>x.trim()).filter(Boolean).join("\n");
   if(!prompt||!answer||(type==="listening-passage"&&!audioUrl)){document.getElementById("mq-err").classList.add("on");return;}
   const opts=optsRaw?(fo&&fo.type==="hidden"?optsRaw.split(","):optsRaw.split("\n")).map(x=>x.trim()).filter(Boolean):[];
   const fao=document.getElementById("qf-anyorder");const anyOrder=fao?fao.checked:false;
@@ -1816,6 +1827,56 @@ Q_FORMS["listening-passage"]=`<label class="lbl">Tiêu đề phần nghe (tuỳ 
     </div>
     <div id="rp-subqs"></div>`;
 
+Q_FORMS["verb-fill"]=`<label class="lbl">Câu / đoạn văn (dùng ___ cho mỗi ô trống; ghi sẵn động từ trong ngoặc)</label>
+    <textarea class="inp" id="qf-prompt" rows="4" placeholder="She ___ (go) to school every day and ___ (study) English.&#10;(1 câu có thể có nhiều ô trống)"></textarea>
+    <label class="lbl">Đáp án từng ô theo thứ tự (mỗi dòng = 1 ô). Nhiều đáp án đều đúng → ngăn bằng dấu /</label>
+    <textarea class="inp" id="qf-answer" rows="3" placeholder="goes&#10;studies&#10;isn't/is not"></textarea>
+    <label class="lbl">Gợi ý / dịch nghĩa (tuỳ chọn)</label>
+    <input class="inp" id="qf-extra" placeholder="">
+    <input type="hidden" id="qf-opts" value="">
+    <div class="csv-info" style="margin-top:6px">Mọi ô trống có <strong>cùng độ dài cố định</strong> nên học sinh không đoán được đáp án dài hay ngắn. Không phân biệt hoa/thường. Điểm: đúng hết các ô mới tính 1 câu.</div>`;
+
+// ══ Verb Fill (chia động từ) ══
+const VF_BLANK_RE=/_{3,}/;
+function vfNorm(s){return String(s==null?"":s).replace(/[\u2019\u2018`]/g,"'").replace(/\s+/g," ").trim().toLowerCase();}
+function vfParts(prompt){return String(prompt||"").split(VF_BLANK_RE);}
+function vfGrade(answerStr,resp){
+  const alts=String(answerStr||"").split("\n").map(x=>x.trim()).filter(Boolean).map(l=>l.split("/").map(vfNorm).filter(Boolean));
+  const each=alts.map((a,i)=>a.includes(vfNorm((resp||[])[i])));
+  return {ok:each.length>0&&each.every(Boolean),each};
+}
+function vfShow(answerStr){
+  return String(answerStr||"").split("\n").map(x=>x.trim()).filter(Boolean).map(l=>l.split("/").map(x=>x.trim()).filter(Boolean).join(" / ")).join(", ");
+}
+function renderVerbFill(q){
+  const parts=vfParts(q.prompt);const n=Math.max(parts.length-1,1);
+  const mk=i=>`<input class="vf-blank" id="vf-${i}" autocomplete="off" autocapitalize="off" spellcheck="false" onkeydown="vfKey(event,${i},${n})">`;
+  let sent="";
+  parts.forEach((p,i)=>{sent+=esc(p).replace(/\n/g,"<br>");if(i<parts.length-1)sent+=mk(i);});
+  if(parts.length<2)sent+=mk(0);
+  return `<div class="fill-sentence vf-sentence">${sent}</div>
+    ${q.extra?`<div class="hint-lbl">${esc(q.extra)}</div>`:""}
+    <button class="btn btn-pur" id="vf-check" onclick="checkVerbFill()" style="margin-bottom:10px">Kiểm tra</button>
+    <div class="fb" id="fb"></div>
+    <button class="nxbt" id="nb" onclick="nextQ()"></button>`;
+}
+function vfKey(e,i,n){
+  if(e.key!=="Enter")return;
+  e.preventDefault();
+  const nx=document.getElementById("vf-"+(i+1));
+  if(nx)nx.focus();else checkVerbFill();
+}
+function checkVerbFill(){
+  const btn=document.getElementById("vf-check");if(!btn||btn.dataset.done)return;btn.dataset.done="1";btn.disabled=true;
+  const q=quizQueue[quizIdx];
+  const inputs=[...document.querySelectorAll("#quiz-body .vf-blank")];
+  const resp=inputs.map(x=>x.value);
+  const g=vfGrade(q.answer,resp);
+  inputs.forEach((x,i)=>{x.disabled=true;x.classList.add(g.each[i]?"ok":"bad");});
+  showFB(g.ok,vfShow(q.answer));if(g.ok)quizCorrect++;
+  const nb=document.getElementById("nb");if(nb){nb.textContent=quizIdx+1<quizQueue.length?"Câu tiếp theo →":"Xem kết quả →";nb.classList.add("on");}
+}
+
 // ── CSV Import ──
 function openCsvModal(){document.getElementById("csv-file").value="";document.getElementById("csv-preview").textContent="";document.getElementById("csv-err").classList.remove("on");openMod("modal-csv");}
 async function importCSV(){
@@ -1833,7 +1894,7 @@ async function importCSV(){
         const [topicId,type,prompt,answer,opt1,opt2,opt3,opt4,extra="",audioUrl=""]=cols;
         if(!topicId||!type||!prompt||!answer)continue;
         const opts=[opt1,opt2,opt3,opt4].filter(Boolean).flatMap(x=>x.split("|")).map(x=>x.trim()).filter(Boolean);
-        const ty0=type.trim();const ans0=ty0==="drag-fill"?answer.trim().split("|").join("\n"):answer.trim();
+        const ty0=type.trim();const ans0=ty0==="drag-fill"?answer.trim().split("|").join("\n"):ty0==="verb-fill"?answer.trim().split(";").map(x=>x.trim()).join("\n"):answer.trim();
         const _tk=topicId.trim().toLowerCase();const _tp=getTopics().find(t=>t.id.toLowerCase()===_tk||(t.name||"").trim().toLowerCase()===_tk);
         if(!_tp){missing.add(topicId.trim());continue;}
         newQs.push({id:"csv"+Date.now()+Math.random().toString(36).slice(2),topicId:_tp.id,type:ty0,prompt:prompt.trim(),answer:ans0,opts,extra:extra.trim(),audioUrl:(audioUrl||"").trim()});
@@ -2393,7 +2454,7 @@ function renderQ(){
   document.getElementById("q-ctr").textContent=(quizIdx+1)+" / "+total;
   document.getElementById("q-live").textContent="✓ "+quizCorrect;
   document.getElementById("qpfill").style.width=(quizIdx/total*100)+"%";
-  const labels={mcq:"Từ vựng",fill:"Điền từ",arrange:"Sắp xếp câu",phonics:"Phiên âm",listen:"Bài nghe","listen-tf":"Nghe Đúng/Sai","listen-fill":"Nghe Điền từ",tf:"Đúng / Sai",odd:"Odd one out","img-mcq":"Chọn ảnh","read-img":"Đọc + Ảnh","listen-img":"Nghe + Ảnh","pic-mcq":"Nhìn ảnh chọn chữ","mcq-multi":"Chọn nhiều đáp án","drag-fill":"Kéo thả từ","listen-multi":"Nghe + Chọn nhiều","img-fill":"Nhìn ảnh điền từ"};
+  const labels={mcq:"Từ vựng",fill:"Điền từ",arrange:"Sắp xếp câu",phonics:"Phiên âm",listen:"Bài nghe","listen-tf":"Nghe Đúng/Sai","listen-fill":"Nghe Điền từ",tf:"Đúng / Sai",odd:"Odd one out","img-mcq":"Chọn ảnh","read-img":"Đọc + Ảnh","listen-img":"Nghe + Ảnh","pic-mcq":"Nhìn ảnh chọn chữ","mcq-multi":"Chọn nhiều đáp án","drag-fill":"Kéo thả từ","listen-multi":"Nghe + Chọn nhiều","img-fill":"Nhìn ảnh điền từ","verb-fill":"Chia động từ"};
   document.getElementById("qt-badge").textContent=labels[q.type]||q.type;
   const body=document.getElementById("quiz-body");
   if(q.type==="mcq"||q.type==="odd")body.innerHTML=renderMCQ(q);
@@ -2412,6 +2473,7 @@ function renderQ(){
   else if(q.type==="drag-fill"){body.innerHTML=renderDragFill(q);initDragFill();}
   else if(q.type==="listen-multi"){body.innerHTML=renderListenMulti(q);}
   else if(q.type==="img-fill"){body.innerHTML=renderImgFill(q);setTimeout(()=>{const fi=document.getElementById("fi");if(fi)fi.focus();},50);}
+  else if(q.type==="verb-fill"){body.innerHTML=renderVerbFill(q);setTimeout(()=>{const f=document.getElementById("vf-0");if(f)f.focus();},50);}
   else if(q.type==="reading-passage"){body.innerHTML=renderReadingPassage(q);rpQuizInit(q);}
   else body.innerHTML=renderMCQ(q);
 }
@@ -3260,6 +3322,7 @@ function flattenTest(qs){
 }
 function pageLabel(p){return p.first===p.last?String(p.first):p.first+"–"+p.last;}
 function itemKind(t){
+  if(t==="verb-fill")return "verbfill";
   if(["img-mcq","read-img","listen-img"].includes(t))return "imgchoice";
   if(t==="tf"||t==="listen-tf")return "tf";
   if(["fill","listen-fill","img-fill"].includes(t))return "fill";
@@ -3275,6 +3338,7 @@ function splitLines(s){return String(s||"").split("\n").map(x=>x.trim()).filter(
 // ── chấm điểm (thuần, dùng chung cho HS & GV) ──
 function gradeItem(it,resp){
   const k=itemKind(it.type);const n=s=>String(s==null?"":s).trim().toLowerCase();
+  if(k==="verbfill")return vfGrade(it.answer,resp);
   if(k==="fill")return {ok:n(resp)===n(it.answer)};
   if(k==="arrange")return {ok:(resp||[]).join(" ").trim()===(it.answer||"").trim()};
   if(k==="multi"){
@@ -3291,6 +3355,7 @@ function gradeItem(it,resp){
 }
 function expectedHtml(it){
   const k=itemKind(it.type);
+  if(k==="verbfill")return esc(vfShow(it.answer));
   if(k==="multi")return esc(splitPipe(it.answer).join(", "));
   if(k==="drag")return esc(splitLines(it.answer).join(", "));
   if(k==="imgchoice")return `<img src="${esc(it.answer)}" alt=""> ${esc(it.extra||"")}`;
@@ -3668,9 +3733,9 @@ function tItemInner(it){
   const draft=T.drafts[it.key];const isGrp=!!it.sub;
   const numB=isGrp?`<span class="rp-qnum">${it.no}</span>`:"";
   const qno=isGrp?"":`<div class="t-qno">Câu ${it.no}</div>`;
-  const inline=(k==="fill"||k==="drag");
+  const inline=(k==="fill"||k==="drag"||k==="verbfill");
   const listen=LISTEN_TYPES.includes(it.type);
-  const extraUp=(k==="fill"||k==="arrange"||k==="drag");
+  const extraUp=(k==="fill"||k==="arrange"||k==="drag"||k==="verbfill");
   let hdr="",ptitle="",body="";
   if(listen){
     hdr=`<div class="lbox"><span class="listen-sub-badge">🎧 Nghe</span>${(it.type!=="listen-fill"&&it.prompt)?`<p style="font-size:13px;color:var(--tx2);margin:8px 0 10px">${esc(it.prompt)}</p>`:""}<button class="lbtn" data-act="play" data-k="${it.key}" style="margin-top:6px">${SPK}Nghe</button></div>`;
@@ -3717,6 +3782,15 @@ function tItemInner(it){
     const parts=(it.prompt||"").split("___");
     const sent=parts.length>=2?esc(parts[0])+inp+esc(parts.slice(1).join("___")):esc(it.prompt||"")+inp;
     body=`<div class="fill-sentence">${numB}${sent}</div>`;
+  }else if(k==="verbfill"){
+    const parts=vfParts(it.prompt);
+    const vals=locked?(rec.r||[]):(Array.isArray(draft)?draft:[]);
+    const gr=(locked&&rv)?gradeItem(it,rec.r):null;
+    const mk=b=>`<input class="vf-blank${gr?(gr.each[b]?" ok":" bad"):""}" data-act="vfill" data-k="${it.key}" data-b="${b}" value="${esc(vals[b]||"")}" autocomplete="off" autocapitalize="off" spellcheck="false"${locked?" disabled":""}>`;
+    let sent="";
+    parts.forEach((p,i)=>{sent+=esc(p).replace(/\n/g,"<br>");if(i<parts.length-1)sent+=mk(i);});
+    if(parts.length<2)sent+=mk(0);
+    body=`<div class="fill-sentence vf-sentence">${numB}${sent}</div>`;
   }else if(k==="arrange"){
     const words=tWords(it);const placedIdx=(draft&&draft.placed)||[];
     let placedHtml,bankHtml="";
@@ -3762,10 +3836,20 @@ document.addEventListener("click",e=>{
 document.addEventListener("input",e=>{
   const t=e.target;
   if(t.dataset&&t.dataset.act==="fill"&&t.closest("#s-test")&&T.att){T.drafts[t.dataset.k]=t.value;tSaveDrafts();}
+  if(t.dataset&&t.dataset.act==="vfill"&&t.closest("#s-test")&&T.att){
+    const d=Array.isArray(T.drafts[t.dataset.k])?T.drafts[t.dataset.k]:(T.drafts[t.dataset.k]=[]);
+    d[+t.dataset.b]=t.value;tSaveDrafts();
+  }
 });
 document.addEventListener("keydown",e=>{
   const t=e.target;
   if(e.key==="Enter"&&t.dataset&&t.dataset.act==="fill"&&t.closest("#s-test")&&T.att)tSubmitItem(t.dataset.k);
+  if(e.key==="Enter"&&t.dataset&&t.dataset.act==="vfill"&&t.closest("#s-test")&&T.att){
+    e.preventDefault();
+    const box=document.getElementById("ti-"+t.dataset.k);
+    const nx=box&&box.querySelector('[data-act="vfill"][data-b="'+(+t.dataset.b+1)+'"]');
+    if(nx)nx.focus();else tSubmitItem(t.dataset.k);
+  }
 });
 document.addEventListener("dragstart",e=>{
   const c=e.target.closest&&e.target.closest('#s-test [data-act="dfChip"]');
@@ -3840,6 +3924,11 @@ function tDfPlace(key,ci,b){
 function tDraftToResp(it){
   const d=T.drafts[it.key];const k=itemKind(it.type);
   if(k==="fill"){const v=(d||"").trim();return v?v:null;}
+  if(k==="verbfill"){
+    const n=Math.max(vfParts(it.prompt).length-1,1);const arr=[];
+    for(let b=0;b<n;b++)arr.push(String((Array.isArray(d)&&d[b])||"").trim());
+    return arr.some(Boolean)?arr:null;
+  }
   if(k==="choice"||k==="imgchoice"||k==="tf")return d||null;
   if(k==="multi")return d&&d.length?d:null;
   if(k==="arrange"){const w=tWords(it);const p=(d&&d.placed)||[];return p.length?p.map(i=>w[i]):null;}
@@ -3854,9 +3943,10 @@ function tSubmitItem(key){
   const it=tItem(key);if(!it||T.answers[key]||T.att.status==="submitted")return;
   const d=tDeadlineInfo();if(d&&d.expired){tFinish(true);return;}
   const resp=tDraftToResp(it);
-  if(resp==null){
+  const incomplete=itemKind(it.type)==="verbfill"&&resp&&resp.some(x=>!x);
+  if(resp==null||incomplete){
     const w=$id("tw-"+key);
-    if(w){w.className="fb on bad";w.textContent=itemKind(it.type)==="drag"?"Điền hết các chỗ trống trước nhé!":"Hãy trả lời trước khi nộp nhé!";}
+    if(w){w.className="fb on bad";w.textContent=(itemKind(it.type)==="drag"||incomplete)?"Điền hết các chỗ trống trước nhé!":"Hãy trả lời trước khi nộp nhé!";}
     return;
   }
   const rec={r:resp,ok:gradeItem(it,resp).ok,t:Date.now()};
@@ -4101,7 +4191,7 @@ function renderTmContent(){
     renderMonitorTable();return;
   }
   const t=tmTest();const qs=getTestQs(TM.id);
-  const TL={mcq:"MCQ",fill:"Fill",arrange:"Arrange",phonics:"Phonics",listen:"Listen",tf:"T/F",odd:"Odd","listen-tf":"Listen TF","listen-fill":"Listen Fill","img-mcq":"Img MCQ","read-img":"Read+Img","listen-img":"Listen+Img","pic-mcq":"Pic MCQ","mcq-multi":"Multi","drag-fill":"Drag Fill","listen-multi":"Listen Multi","img-fill":"Img Fill","reading-passage":"Reading","listening-passage":"Listening"};
+  const TL={mcq:"MCQ",fill:"Fill",arrange:"Arrange",phonics:"Phonics",listen:"Listen",tf:"T/F",odd:"Odd","listen-tf":"Listen TF","listen-fill":"Listen Fill","img-mcq":"Img MCQ","read-img":"Read+Img","listen-img":"Listen+Img","pic-mcq":"Pic MCQ","mcq-multi":"Multi","drag-fill":"Drag Fill","listen-multi":"Listen Multi","img-fill":"Img Fill","reading-passage":"Reading","listening-passage":"Listening","verb-fill":"Chia ĐT"};
   el.innerHTML=`<div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">
       <h2 style="font-size:15px;font-weight:600">Câu hỏi trong test (${flattenTest(qs).total} câu tính điểm)</h2>
@@ -4115,7 +4205,7 @@ function renderTmContent(){
       <button class="btn btn-sm" onclick="openQModal('${q.id}','${TM.id}')">Sửa</button><button class="btn btn-sm btn-red" onclick="deleteTestQ('${q.id}')">Xóa</button></div></td></tr>`;}).join("")}</tbody></table></div>`
       :'<div class="empty">Chưa có câu hỏi. Bấm "+ Thêm câu". Muốn 1 audio nhiều câu hỏi → chọn dạng <strong>Listening Passage</strong>.</div>'}</div>`;
 }
-const CSV_TYPES=["mcq","fill","arrange","phonics","listen","listen-tf","listen-fill","tf","odd","img-mcq","read-img","listen-img","pic-mcq","mcq-multi","drag-fill","listen-multi","img-fill"];
+const CSV_TYPES=["mcq","fill","arrange","phonics","listen","listen-tf","listen-fill","tf","odd","img-mcq","read-img","listen-img","pic-mcq","mcq-multi","drag-fill","listen-multi","img-fill","verb-fill"];
 function openTestCsvModal(){
   $id("tcsv-file").value="";$id("tcsv-preview").textContent="";$id("tcsv-err").classList.remove("on");
   $id("tcsv-btn").disabled=false;openMod("modal-tcsv");
@@ -4140,6 +4230,7 @@ function importTestCsv(){
         if(!CSV_TYPES.includes(ty)||!prompt||!answer)continue;
         let ans=answer.trim();
         if(ty==="drag-fill")ans=ans.split("|").join("\n");
+        if(ty==="verb-fill")ans=ans.split(";").map(x=>x.trim()).join("\n");
         items.push({type:ty,prompt:prompt.trim(),answer:ans,opts:[o1,o2,o3,o4].map(x=>(x||"").trim()).filter(Boolean).flatMap(x=>x.split("|")).map(x=>x.trim()).filter(Boolean),extra:(extra||"").trim(),audioUrl:(audio||"").trim()});
       }
       if(!items.length){err.classList.add("on");return;}
