@@ -389,6 +389,23 @@ textarea.inp{resize:vertical;min-height:70px}
 .vf-blank.bad{border-bottom-color:var(--red);color:var(--red);background:var(--red-l);border-radius:4px 4px 0 0}
 .vf-blank:disabled{opacity:1;-webkit-text-fill-color:currentColor;cursor:default}
 @media(max-width:500px){.vf-blank{width:120px}}
+
+/* ═══ CHẾ ĐỘ LÀM BÀI CUỘN MỘT TRANG ═══ */
+.sc-mode #t-head{position:sticky;top:58px;z-index:19;background:var(--surf);margin:0 -20px 12px;padding:8px 20px 6px;border-bottom:1px solid var(--bord)}
+.sc-mode #t-head .qprog{margin-bottom:6px}
+.sc-mode #t-head .t-meta{margin-bottom:4px}
+.tdots.sc-nav{flex-wrap:nowrap;overflow-x:auto;margin-bottom:0;padding-bottom:4px;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+.sc-nav .tdot{flex:0 0 auto;white-space:nowrap}
+.sc-sec{margin-bottom:24px}
+.sc-hd{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--pur-l);border:1px solid var(--pur-m);color:var(--pur-d);font-weight:700;font-size:13px;border-radius:var(--rs);padding:8px 12px;margin-bottom:8px}
+.sc-rng{font-weight:600;font-size:12px;color:var(--tx2);white-space:nowrap}
+.sc-hint{font-size:12px;color:var(--tx3);margin:-2px 2px 8px}
+.sc-sec .t-audio{top:var(--sc-top,130px)}
+.sc-pass{position:sticky;top:var(--sc-top,130px);z-index:14;max-height:34vh;overflow:auto;box-shadow:0 4px 10px rgba(0,0,0,.08)}
+.sc-pass-hd{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+.sc-pass.collapsed{max-height:52px;overflow:hidden}
+.sc-pass.collapsed .rp-passage-body{display:none}
+@media(max-width:500px){.sc-mode #t-lv{display:none}}
 </style>
 </head>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -946,6 +963,11 @@ textarea.inp{resize:vertical;min-height:70px}
     <select class="inp" id="mtt-home">
       <option value="same">Giống cài đặt hiện đáp án ở trên</option>
       <option value="instant">Luôn hiện đúng/sai ngay sau mỗi câu (để tự học)</option>
+    </select>
+    <label class="lbl">Cách hiển thị bài làm</label>
+    <select class="inp" id="mtt-layout">
+      <option value="paged">Từng trang — nộp từng câu, bấm “Sau →” để sang câu khác</option>
+      <option value="scroll">Cuộn một trang — thấy toàn bộ đề, kéo xuống để làm, nộp 1 lần ở cuối (khuyên dùng cho bài nghe/đọc)</option>
     </select>
     <div id="mtt-assign"></div>
     <div class="err-msg" id="mtt-err">Vui lòng nhập tên bài test!</div>
@@ -3525,7 +3547,7 @@ function renderStudentTests(){
 // ════════════════════════════════════════════════════════════════
 //  HỌC SINH: LÀM BÀI
 // ════════════════════════════════════════════════════════════════
-const T={test:null,att:null,ref:null,flat:null,answers:{},drafts:{},page:0,tick:null,sel:null,dragging:null,audio:null,playing:false,playerQ:null,plays:{},busy:false,review:false,hist:false,curTimer:null};
+const T={test:null,att:null,ref:null,flat:null,answers:{},drafts:{},page:0,tick:null,sel:null,dragging:null,audio:null,playing:false,playerQ:null,plays:{},busy:false,review:false,hist:false,curTimer:null,layout:"paged",players:{},scTimers:{},blocks:[],scCur:0};
 
 function tSeed(it){return (T.att&&T.att.seed||"s")+"|"+it.key;}
 function tOpts(it){
@@ -3546,8 +3568,10 @@ function tItemsDone(){return T.flat.items.filter(it=>T.answers[it.key]).length;}
 
 // Có hiện đúng/sai cho câu đã nộp không?
 function tShowMode(test,att){
-  if(att.mode==="practice"&&test.homeShow==="instant")return "instant";
-  return test.showAnswers||"end";
+  let sa=test.showAnswers||"end";
+  if(att.mode==="practice"&&test.homeShow==="instant")sa="instant";
+  if(T.layout==="scroll"&&sa==="instant")sa="end";   // cuộn một trang: chỉ hiện đáp án sau khi nộp cả bài
+  return sa;
 }
 function tReveal(){
   const sa=tShowMode(T.test,T.att);
@@ -3590,6 +3614,8 @@ async function tOpenTest(testId){
     if(att.mode==="live")CLOCK.off=await measureOffset(ref);
     T.test=test;T.att=att;T.ref=ref;T.flat=flat;T.answers=att.answers||{};T.drafts=tLoadDrafts(att.id);
     T.plays=att.plays||{};T.page=Math.max(0,Math.min(att.current||0,flat.pages.length-1));T.sel=null;T.review=false;
+    T.layout=test.layout==="scroll"?"scroll":"paged";T.scCur=0;T.scTimers={};
+    $id("s-test").classList.toggle("sc-mode",T.layout==="scroll");
     if(att.status==="submitted"){tShowResult();return;}
     tRender();tStartTick();
   }catch(e){
@@ -3600,7 +3626,7 @@ async function tOpenTest(testId){
 async function tReview(attId){
   const a=MY.att.find(x=>x.id===attId);if(!a)return;
   const test=getTests().find(t=>t.id===a.testId);if(!test)return;
-  T.test=test;T.att=a;T.ref=null;T.flat=flattenTest(getTestQs(a.testId));T.answers=a.answers||{};T.review=true;
+  T.test=test;T.att=a;T.ref=null;T.flat=flattenTest(getTestQs(a.testId));T.answers=a.answers||{};T.review=true;T.layout="paged";$id("s-test").classList.remove("sc-mode");
   if(!T.hist){try{history.pushState({ep:"test"},"");T.hist=true;}catch(e){}}
   tShowResult();
 }
@@ -3635,14 +3661,14 @@ function tTick(){
 // ── vẽ màn làm bài ──
 function tRender(){
   $id("t-title").textContent=T.test.title;$id("t-head").style.display="";
-  tRenderDots();tRenderProgress();tRenderPage();tRenderFoot();
+  if(T.layout==="scroll"){tScRender();}else{$id("t-dots").className="tdots";tRenderDots();tRenderProgress();tRenderPage();tRenderFoot();}
   if(T.att.mode!=="live")$id("t-timer").style.display="none";
 }
 function tRenderProgress(){
   const total=T.flat.total,done=tItemsDone();
-  $id("t-progtxt").innerHTML=`Đã nộp <strong>${done}</strong> / ${total} câu`;
+  $id("t-progtxt").innerHTML=`${T.layout==="scroll"?"Đã trả lời":"Đã nộp"} <strong>${done}</strong> / ${total} câu`;if(T.layout==="scroll")tScNavUpd();
   $id("t-pfill").style.width=(total?done/total*100:0)+"%";
-  let lv=T.att.mode==="live"?"Làm trong giờ học":"Luyện tập ở nhà (không tính giờ)";
+  let lv=T.att.mode==="live"?"Làm trong giờ học":"Luyện tập ở nhà (không tính giờ)";if(T.layout==="scroll")lv+=" · Cuộn một trang";
   if(tReveal()){const c=T.flat.items.filter(it=>T.answers[it.key]&&T.answers[it.key].ok).length;lv+=" · ✓ "+c;}
   $id("t-lv").textContent=lv;
 }
@@ -3676,61 +3702,172 @@ function tRenderPage(){
 }
 function tRefreshItem(key){const el=$id("ti-"+key);if(el)el.innerHTML=tItemInner(tItem(key));}
 
-// ── 1 audio / nhiều câu hỏi ──
+// ── 1 audio / nhiều câu hỏi (mỗi phần nghe có 1 trình phát riêng) ──
 function tPlayerHtml(q){
-  return `<div class="t-audio" id="t-audio">
+  return `<div class="t-audio" id="t-audio-${q.id}">
     <div style="flex-basis:100%;font-size:13px;color:var(--tx2)"><strong>🎧 ${esc(q.rpTitle||"Listening")}</strong>${q.prompt?" — "+esc(q.prompt):""}</div>
-    <button class="lbtn" id="tp-btn" data-act="tpPlay">${SPK}Nghe</button>
-    <div class="bar"><i id="tp-bar"></i></div><span class="tm" id="tp-tm">0:00</span><span class="pl" id="tp-pl"></span></div>`;
+    <button class="lbtn" id="tp-btn-${q.id}" data-act="tpPlay" data-q="${q.id}">${SPK}Nghe</button>
+    <div class="bar"><i id="tp-bar-${q.id}"></i></div><span class="tm" id="tp-tm-${q.id}">0:00</span><span class="pl" id="tp-pl-${q.id}"></span></div>`;
 }
 function tSetupPlayer(q){
-  tStopAudio();
-  const a=new Audio(q.audioUrl);a.preload="auto";T.audio=a;T.playing=false;T.playerQ=q;
+  const a=new Audio(q.audioUrl);a.preload="auto";
+  const P=T.players[q.id]={audio:a,playing:false,q};
   a.addEventListener("timeupdate",()=>{
-    const bar=$id("tp-bar"),tm=$id("tp-tm");if(!bar)return;
+    const bar=$id("tp-bar-"+q.id),tm=$id("tp-tm-"+q.id);if(!bar)return;
     bar.style.width=(a.duration?a.currentTime/a.duration*100:0)+"%";
     tm.textContent=Math.floor(a.currentTime/60)+":"+pad2(Math.floor(a.currentTime%60));
   });
-  a.addEventListener("ended",()=>{T.playing=false;tPlayerUpd();});
-  a.addEventListener("pause",()=>{T.playing=false;tPlayerUpd();});
-  a.addEventListener("error",()=>{T.playing=false;toast("Không tải được audio");tPlayerUpd();});
-  tPlayerUpd();
+  a.addEventListener("ended",()=>{P.playing=false;tPlayerUpd(q.id);});
+  a.addEventListener("pause",()=>{P.playing=false;tPlayerUpd(q.id);});
+  a.addEventListener("error",()=>{P.playing=false;toast("Không tải được audio");tPlayerUpd(q.id);});
+  tPlayerUpd(q.id);
 }
-function tPlayerUpd(){
-  const btn=$id("tp-btn"),pl=$id("tp-pl"),q=T.playerQ,a=T.audio;if(!btn||!q||!a)return;
+function tPlayerUpd(qid){
+  const P=T.players[qid];const btn=$id("tp-btn-"+qid),pl=$id("tp-pl-"+qid);if(!btn||!P)return;
+  const q=P.q,a=P.audio;
   const max=q.maxPlays||0,used=T.plays[q.id]||0;
   const fresh=a.ended||a.currentTime<0.2;
   let label,dis=false;
-  if(T.playing)label="⏸ Tạm dừng";
+  if(P.playing)label="⏸ Tạm dừng";
   else if(!fresh)label="▶ Tiếp tục";
   else{label=used>0?"🔁 Nghe lại":SPK+"Nghe";if(max&&used>=max)dis=true;}
   btn.innerHTML=label;btn.disabled=dis;btn.style.opacity=dis?".5":"";
   pl.textContent=max?`Đã nghe ${used}/${max} lần`:(used?`Đã nghe ${used} lần`:"");
 }
-function tTogglePlay(){
-  const a=T.audio,q=T.playerQ;if(!a||!q)return;const max=q.maxPlays||0;
-  if(T.playing){a.pause();return;}
+function tPauseAllPlayers(except){
+  Object.keys(T.players).forEach(k=>{if(k!==except&&T.players[k].playing){try{T.players[k].audio.pause();}catch(e){}}});
+}
+function tTogglePlay(qid){
+  const P=T.players[qid];if(!P)return;const a=P.audio,q=P.q;const max=q.maxPlays||0;
+  if(P.playing){a.pause();return;}
+  tPauseAllPlayers(qid);
   const fresh=a.ended||a.currentTime<0.2;
   if(fresh){
     if(max&&(T.plays[q.id]||0)>=max){toast("Bạn đã dùng hết số lần nghe");return;}
     T.plays[q.id]=(T.plays[q.id]||0)+1;a.currentTime=0;
     if(T.ref&&T.att.status!=="submitted")T.ref.update({["plays."+q.id]:T.plays[q.id]}).catch(()=>{});
   }
-  a.play().then(()=>{T.playing=true;tPlayerUpd();}).catch(()=>{
+  a.play().then(()=>{P.playing=true;tPlayerUpd(qid);}).catch(()=>{
     if(fresh){T.plays[q.id]=Math.max(0,(T.plays[q.id]||1)-1);if(T.ref)T.ref.update({["plays."+q.id]:T.plays[q.id]}).catch(()=>{});}
-    toast("Không phát được audio");tPlayerUpd();
+    toast("Không phát được audio");tPlayerUpd(qid);
   });
 }
 function tStopAudio(){
-  if(T.audio){try{T.audio.pause();}catch(e){}T.audio=null;}
-  T.playing=false;
+  Object.keys(T.players).forEach(k=>{try{T.players[k].audio.pause();}catch(e){}});
+  T.players={};
   try{if(currentAudio){currentAudio.pause();}window.speechSynthesis&&window.speechSynthesis.cancel();}catch(e){}
+}
+
+
+// ════════════════════════════════════════════════════════════════
+//  CHẾ ĐỘ LÀM BÀI "CUỘN MỘT TRANG" — thấy cả đề, kéo xuống để làm, nộp 1 lần
+// ════════════════════════════════════════════════════════════════
+const SC_LBL={mcq:["🔤","Chọn đáp án"],odd:["🧩","Từ khác loại"],fill:["✍️","Điền từ"],arrange:["🔀","Sắp xếp câu"],phonics:["🔊","Phiên âm"],"err-correct":["🛠","Sửa lỗi sai"],listen:["🎧","Nghe & chọn"],"listen-tf":["🎧","Nghe Đúng/Sai"],"listen-fill":["🎧","Nghe & điền từ"],"listen-img":["🎧","Nghe & chọn ảnh"],"listen-multi":["🎧","Nghe & chọn nhiều"],tf:["✅","Đúng / Sai"],"img-mcq":["🖼","Chọn ảnh"],"read-img":["🖼","Đọc & chọn ảnh"],"pic-mcq":["🖼","Nhìn ảnh chọn chữ"],"img-fill":["🖼","Nhìn ảnh điền từ"],"mcq-multi":["☑️","Chọn nhiều đáp án"],"drag-fill":["🧲","Kéo thả từ"],"verb-fill":["📝","Chia động từ"],"reading-passage":["📖","Bài đọc"],"listening-passage":["🎧","Listening"]};
+const SC_HINT={mcq:"Chọn 1 đáp án đúng.",fill:"Điền từ/chữ còn thiếu vào chỗ trống.",arrange:"Nhấn các từ để sắp xếp thành câu đúng.",tf:"Chọn True (đúng) hoặc False (sai).","drag-fill":"Kéo thả (hoặc nhấn từ rồi nhấn vào chỗ trống).","verb-fill":"Chia động từ trong ngoặc vào ô trống.","mcq-multi":"Chọn TẤT CẢ đáp án đúng.","err-correct":"Chọn phần gạch chân bị sai.","listen-multi":"Nghe và chọn TẤT CẢ đáp án đúng.","listening-passage":"Bấm Nghe, vừa nghe vừa trả lời các câu bên dưới.","reading-passage":"Đọc bài rồi trả lời các câu bên dưới (bài đọc luôn ghim ở trên)."};
+
+function tEditable(key){return T.layout==="scroll"?T.att.status!=="submitted":!T.answers[key];}
+// đáp án đã lưu → draft (khi học sinh làm tiếp trên thiết bị khác / đã xoá bộ nhớ trình duyệt)
+function recToDraft(it,r){
+  const k=itemKind(it.type);if(r==null)return undefined;
+  if(k==="arrange"){const w=tWords(it);const used=new Set();const placed=[];(r||[]).forEach(x=>{const i=w.findIndex((y,j)=>y===x&&!used.has(j));if(i>-1){used.add(i);placed.push(i);}});return {placed};}
+  if(k==="drag"){const bank=tBank(it);const used=new Set();const fill=(r||[]).map(x=>{const i=bank.findIndex((y,j)=>y===x&&!used.has(j));if(i>-1)used.add(i);return i;});return {fill};}
+  return r;
+}
+function tScBlocks(){
+  const out=[];
+  T.flat.pages.forEach(p=>{
+    const ty=p.q.type,last=out[out.length-1];
+    if(!p.group&&last&&!last.group&&last.type===ty){last.pages.push(p);last.last=p.last;}
+    else out.push({type:ty,group:p.group,pages:[p],first:p.first,last:p.last,q:p.q});
+  });
+  return out;
+}
+function tScRender(){
+  tStopAudio();
+  $id("t-title").textContent=T.test.title;$id("t-head").style.display="";
+  T.blocks=tScBlocks();
+  $id("t-body").innerHTML=T.blocks.map((b,bi)=>{
+    const [ic,lb]=SC_LBL[b.type]||["📝",b.type];
+    const rng=b.first===b.last?"Câu "+b.first:"Câu "+b.first+"–"+b.last;
+    const hint=SC_HINT[b.type]||"";
+    let top="";
+    if(b.type==="reading-passage")top=`<div class="rp-passage sc-pass" id="scp-${bi}"><div class="sc-pass-hd"><span class="rp-passage-title" style="margin:0">📖 ${esc(b.q.rpTitle||"Bài đọc")}</span><button type="button" class="btn btn-sm" data-act="scPass" data-i="${bi}">▲ Thu gọn</button></div><div class="rp-passage-body">${esc(b.q.prompt||"").replace(/\n/g,"<br>")}</div></div>`;
+    else if(b.type==="listening-passage")top=tPlayerHtml(b.q);
+    const items=b.pages.map(p=>p.items.map(it=>`<div class="tq-item" id="ti-${it.key}">${tItemInner(it)}</div>`).join("")).join("");
+    return `<section class="sc-sec" id="sc-${bi}"><div class="sc-hd"><span>${ic} ${esc(lb)}</span><span class="sc-rng">${rng}</span></div>${hint?`<div class="sc-hint">${hint}</div>`:""}${top}${items}</section>`;
+  }).join("");
+  T.blocks.forEach(b=>{if(b.type==="listening-passage")tSetupPlayer(b.q);});
+  $id("t-foot").innerHTML=`<span id="sc-left" class="tlist-meta"></span><button class="btn btn-pur" data-act="finish">✔ Nộp bài</button>`;
+  $id("t-dots").className="tdots sc-nav";
+  tRenderProgress();tScMeasure();
+  window.scrollTo({top:0});
+}
+function tScNavUpd(){
+  if(T.layout!=="scroll"||!T.blocks||!T.blocks.length)return;
+  const nav=$id("t-dots");if(!nav)return;
+  const sl=nav.scrollLeft;
+  nav.innerHTML=T.blocks.map((b,bi)=>{
+    const its=b.pages.flatMap(p=>p.items);const d=its.filter(it=>T.answers[it.key]).length;
+    const cls=(d===its.length?"done":d>0?"part":"")+(bi===T.scCur?" cur":"");
+    const ic=(SC_LBL[b.type]||["📝"])[0];
+    return `<button class="tdot ${cls}" data-act="scGo" data-i="${bi}" title="${d}/${its.length} câu">${ic} ${b.first===b.last?b.first:b.first+"–"+b.last}</button>`;
+  }).join("");
+  nav.scrollLeft=sl;
+  const left=T.flat.total-tItemsDone();const l=$id("sc-left");
+  if(l)l.textContent=left?`Còn ${left} câu chưa trả lời`:"Đã trả lời hết — kiểm tra lại rồi nộp bài";
+}
+function tScMeasure(){
+  const top=document.querySelector("#s-test .t-top"),head=$id("t-head");if(!top||!head)return;
+  head.style.top=top.offsetHeight+"px";
+  $id("t-body").style.setProperty("--sc-top",(top.offsetHeight+head.offsetHeight+4)+"px");
+}
+function tScOff(){return (parseInt($id("t-body").style.getPropertyValue("--sc-top"))||130);}
+function tScGo(i){
+  const el=$id("sc-"+i);if(!el)return;
+  window.scrollTo({top:el.getBoundingClientRect().top+window.scrollY-tScOff(),behavior:"smooth"});
+}
+function tScPass(i){
+  const el=$id("scp-"+i);if(!el)return;
+  const c=el.classList.toggle("collapsed");
+  const b=el.querySelector('[data-act="scPass"]');if(b)b.textContent=c?"▼ Mở rộng":"▲ Thu gọn";
+}
+function tScTrack(){
+  if(T.layout!=="scroll"||!T.blocks||!T.blocks.length)return;
+  const off=tScOff()+12;let cur=0;
+  T.blocks.forEach((b,bi)=>{const el=$id("sc-"+bi);if(el&&el.getBoundingClientRect().top<=off)cur=bi;});
+  if(cur!==T.scCur){
+    T.scCur=cur;tScNavUpd();
+    const nav=$id("t-dots"),c=nav&&nav.querySelector(".tdot.cur");
+    if(c)nav.scrollLeft=c.offsetLeft-nav.clientWidth/2+c.offsetWidth/2;
+  }
+}
+let _scRaf=0;
+window.addEventListener("scroll",()=>{
+  if(_scRaf||!T.att||T.layout!=="scroll"||!$id("s-test").classList.contains("on"))return;
+  _scRaf=requestAnimationFrame(()=>{_scRaf=0;tScTrack();});
+},{passive:true});
+window.addEventListener("resize",()=>{if(T.layout==="scroll"&&T.att&&$id("s-test").classList.contains("on"))tScMeasure();});
+// tự lưu từng câu (có thể sửa lại tới khi nộp bài) → giáo viên vẫn theo dõi được tiến độ thật
+function tScQueue(key,delay){clearTimeout(T.scTimers[key]);T.scTimers[key]=setTimeout(()=>tScSync(key),delay);}
+function tScSync(key){
+  if(!T.att||T.att.status==="submitted"||T.layout!=="scroll")return;
+  const it=tItem(key);if(!it)return;
+  const d=tDeadlineInfo();if(d&&d.expired)return;
+  const resp=tDraftToResp(it);const upd={updatedAt:SERVER_TS()};
+  if(resp==null){delete T.answers[key];upd["answers."+key]=firebase.firestore.FieldValue.delete();}
+  else{const rec={r:resp,ok:gradeItem(it,resp).ok,t:Date.now()};T.answers[key]=rec;upd["answers."+key]=rec;}
+  upd.answered=tItemsDone();
+  upd.correct=T.flat.items.filter(x=>T.answers[x.key]&&T.answers[x.key].ok).length;
+  const pi=T.flat.pages.findIndex(p=>p.items.some(x=>x.key===key));if(pi>-1)upd.current=pi;
+  T.ref.update(upd).catch(e=>console.error(e));
+  tRenderProgress();
 }
 
 // ── vẽ 1 câu (item) ──
 function tItemInner(it){
-  const k=itemKind(it.type);const rec=T.answers[it.key];const locked=!!rec;const rv=locked&&tReveal();
-  const draft=T.drafts[it.key];const isGrp=!!it.sub;
+  const sc=T.layout==="scroll";const subm=T.att.status==="submitted";
+  const k=itemKind(it.type);const rec=T.answers[it.key]||(sc&&subm?{r:null,ok:false}:undefined);const locked=sc?subm:!!rec;const rv=locked&&tReveal();
+  const draft=(T.drafts[it.key]!==undefined)?T.drafts[it.key]:(sc&&rec?recToDraft(it,rec.r):undefined);const isGrp=!!it.sub;
   const numB=isGrp?`<span class="rp-qnum">${it.no}</span>`:"";
   const qno=isGrp?"":`<div class="t-qno">Câu ${it.no}</div>`;
   const inline=(k==="fill"||k==="drag"||k==="verbfill");
@@ -3823,7 +3960,7 @@ function tItemInner(it){
     foot=!rv?'<div class="fb on sub">✓ Đã nộp câu này</div>'
       :rec.ok?'<div class="fb on ok">🎉 Chính xác!</div>'
       :`<div class="fb on bad">❌ Sai! Đáp án: ${expectedHtml(it)}</div>`;
-  }else foot=`<button class="btn btn-pur btn-sm t-sub" data-act="submit" data-k="${it.key}">Nộp câu này</button><div class="fb" id="tw-${it.key}"></div>`;
+  }else foot=sc?"":`<button class="btn btn-pur btn-sm t-sub" data-act="submit" data-k="${it.key}">Nộp câu này</button><div class="fb" id="tw-${it.key}"></div>`;
   return qno+hdr+ptitle+body+extraHtml+foot;
 }
 
@@ -3835,10 +3972,10 @@ document.addEventListener("click",e=>{
 });
 document.addEventListener("input",e=>{
   const t=e.target;
-  if(t.dataset&&t.dataset.act==="fill"&&t.closest("#s-test")&&T.att){T.drafts[t.dataset.k]=t.value;tSaveDrafts();}
+  if(t.dataset&&t.dataset.act==="fill"&&t.closest("#s-test")&&T.att){T.drafts[t.dataset.k]=t.value;tSaveDrafts();if(T.layout==="scroll")tScQueue(t.dataset.k,700);}
   if(t.dataset&&t.dataset.act==="vfill"&&t.closest("#s-test")&&T.att){
     const d=Array.isArray(T.drafts[t.dataset.k])?T.drafts[t.dataset.k]:(T.drafts[t.dataset.k]=[]);
-    d[+t.dataset.b]=t.value;tSaveDrafts();
+    d[+t.dataset.b]=t.value;tSaveDrafts();if(T.layout==="scroll")tScQueue(t.dataset.k,700);
   }
 });
 document.addEventListener("keydown",e=>{
@@ -3876,7 +4013,9 @@ function tAct(el){
   if(act==="prev")return tGoto(T.page-1);
   if(act==="next")return tGoto(T.page+1);
   if(act==="finish")return tFinish(false);
-  if(act==="tpPlay")return tTogglePlay();
+  if(act==="tpPlay")return tTogglePlay(el.dataset.q);
+  if(act==="scGo")return tScGo(+el.dataset.i);
+  if(act==="scPass")return tScPass(+el.dataset.i);
   if(T.att.status==="submitted"||T.review)return;
   const it=key?tItem(key):null;
   if(act==="play"&&it){
@@ -3884,9 +4023,10 @@ function tAct(el){
     if(it.type==="listen-tf")tts=it.prompt;
     else if(it.type==="listen-fill")tts=(it.prompt||"").replace("___",it.answer);
     else if(it.type==="listen")tts=it.answer;
+    tPauseAllPlayers();
     return playQuestionAudio(it.audioUrl||"",tts);
   }
-  if(!it||T.answers[key])return;
+  if(!it||!tEditable(key))return;
   const k=itemKind(it.type);
   if(act==="pick"){
     T.drafts[key]=k==="tf"?el.dataset.v:tOpts(it)[+el.dataset.i];
@@ -3911,14 +4051,16 @@ function tAct(el){
   }else if(act==="submit"){
     tSubmitItem(key);
   }
+  if(T.layout==="scroll"&&["pick","mtoggle","arrAdd","arrRem","dfBlank"].includes(act))tScQueue(key,150);
 }
 function tDfPlace(key,ci,b){
-  const it=tItem(key);if(!it||T.answers[key])return;
+  const it=tItem(key);if(!it||!tEditable(key))return;
   const n=(it.prompt||"").split("___").length-1;
   const d=T.drafts[key]=T.drafts[key]||{fill:[]};
   d.fill=d.fill||[];while(d.fill.length<n)d.fill.push(-1);
   d.fill=d.fill.map(x=>x===ci?-1:x);d.fill[b]=ci;
   T.sel=null;tSaveDrafts();tRefreshItem(key);
+  if(T.layout==="scroll")tScQueue(key,150);
 }
 // draft → đáp án (null nếu chưa đủ)
 function tDraftToResp(it){
@@ -3940,6 +4082,7 @@ function tDraftToResp(it){
   return null;
 }
 function tSubmitItem(key){
+  if(T.layout==="scroll"){tScQueue(key,0);return;}
   const it=tItem(key);if(!it||T.answers[key]||T.att.status==="submitted")return;
   const d=tDeadlineInfo();if(d&&d.expired){tFinish(true);return;}
   const resp=tDraftToResp(it);
@@ -3957,13 +4100,23 @@ function tSubmitItem(key){
 }
 async function tFinish(auto){
   if(!T.att||T.att.status==="submitted"||FINISHING.has(T.att.id))return;
+  const scUpd={};
+  if(T.layout==="scroll"){
+    Object.keys(T.scTimers).forEach(k=>clearTimeout(T.scTimers[k]));
+    T.flat.items.forEach(it=>{
+      if(T.drafts[it.key]===undefined)return;
+      const resp=tDraftToResp(it);
+      if(resp==null){delete T.answers[it.key];scUpd["answers."+it.key]=firebase.firestore.FieldValue.delete();}
+      else{const rec={r:resp,ok:gradeItem(it,resp).ok,t:Date.now()};T.answers[it.key]=rec;scUpd["answers."+it.key]=rec;}
+    });
+  }
   const pending=T.flat.items.filter(it=>!T.answers[it.key]);
   if(!auto){
     const unans=pending.filter(it=>tDraftToResp(it)==null).length;
     if(!confirm(unans?`Bạn còn ${unans} câu chưa trả lời. Nộp bài luôn?`:"Nộp bài và xem kết quả?"))return;
   }
   FINISHING.add(T.att.id);
-  const upd={};
+  const upd={...scUpd};
   pending.forEach(it=>{
     const resp=tDraftToResp(it);
     if(resp!=null){const rec={r:resp,ok:gradeItem(it,resp).ok,t:Date.now()};T.answers[it.key]=rec;upd["answers."+it.key]=rec;}
@@ -3980,6 +4133,7 @@ async function tFinish(auto){
 }
 function tShowResult(){
   showScr("s-test");tStopTick();tStopAudio();
+  $id("s-test").classList.remove("sc-mode");
   const att=T.att,test=T.test;
   $id("t-title").textContent=test.title;$id("t-timer").style.display="none";
   $id("t-head").style.display="none";
@@ -4029,7 +4183,7 @@ function openTestModal(id){
   $id("mtt-id").value=id||"";$id("modal-test-title").textContent=id?"Sửa thông tin test":"Tạo test mới";
   $id("mtt-title").value=t?t.title:"";$id("mtt-lesson").value=t?t.lesson||"":"";$id("mtt-date").value=t?t.lessonDate||"":"";
   $id("lesson-list").innerHTML=lessonFolders(getTests()).map(f=>`<option value="${esc(f.name)}">`).join("");
-  $id("mtt-min").value=t?t.durationMin||30:30;$id("mtt-show").value=t?t.showAnswers||"end":"end";$id("mtt-home").value=t&&t.homeShow==="instant"?"instant":"same";
+  $id("mtt-min").value=t?t.durationMin||30:30;$id("mtt-show").value=t?t.showAnswers||"end":"end";$id("mtt-home").value=t&&t.homeShow==="instant"?"instant":"same";$id("mtt-layout").value=t&&t.layout==="scroll"?"scroll":"paged";
   $id("mtt-pub").checked=t?!!t.published:true;renderAssignBox("mtt-assign",t?t.assignedTo:[]);$id("mtt-err").classList.remove("on");
   openMod("modal-test");
 }
@@ -4041,7 +4195,7 @@ async function saveTestInner(){
   const id=$id("mtt-id").value;const title=$id("mtt-title").value.trim();
   if(!title){$id("mtt-err").classList.add("on");return;}
   const data={title,lesson:$id("mtt-lesson").value.trim(),lessonDate:$id("mtt-date").value,durationMin:Math.max(1,parseInt($id("mtt-min").value)||30),
-    showAnswers:$id("mtt-show").value,homeShow:$id("mtt-home").value,published:$id("mtt-pub").checked,assignedTo:readAssignBox("mtt-assign")};
+    showAnswers:$id("mtt-show").value,homeShow:$id("mtt-home").value,layout:$id("mtt-layout").value,published:$id("mtt-pub").checked,assignedTo:readAssignBox("mtt-assign")};
   try{
     if(id){
       const t=getTests().find(x=>x.id===id);
